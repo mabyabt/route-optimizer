@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Route Optimizer</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <style>
+        #map { height: 600px; width: 100%; }
+    </style>
+</head>
+<body>
+    <h1>Route Optimizer</h1>
+
+    <!-- Form to upload the addresses file -->
+    <form id="upload-form" method="POST" enctype="multipart/form-data">
+        <input type="file" name="file" required />
+        <button type="submit">Upload & Check Addresses</button>
+    </form>
+
+    <!-- Section to display corrected addresses -->
+    <div id="corrected-addresses" style="display: none;">
+        <h2>Corrected Addresses</h2>
+        <ul id="address-list"></ul>
+        <button id="confirm-addresses" style="display: none;">Confirm & Optimize Route</button>
+    </div>
+
+    <!-- Map display -->
+    <div id="map" style="display: none;"></div>
+
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script>
+        document.getElementById('upload-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            var formData = new FormData(this);
+
+            // Step 1: Check and correct addresses
+            fetch('/check_addresses', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                var addressList = document.getElementById('address-list');
+                addressList.innerHTML = '';
+                data.forEach(function(address, index) {
+                    var li = document.createElement('li');
+                    li.textContent = address[0];
+                    addressList.appendChild(li);
+                });
+
+                // Show the corrected addresses and the confirm button
+                document.getElementById('corrected-addresses').style.display = 'block';
+                document.getElementById('confirm-addresses').style.display = 'block';
+
+                // Step 2: Confirm the corrected addresses and optimize the route
+                document.getElementById('confirm-addresses').addEventListener('click', function() {
+                    fetch('/optimize', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ corrected_addresses: data })
+                    })
+                    .then(response => response.json())
+                    .then(coords => {
+                        var map = L.map('map').setView([coords[0].lat, coords[0].lng], 13);
+
+                        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                            attribution: 'Map data © <a href="https://openstreetmap.org">OpenStreetMap</a> contributors'
+                        }).addTo(map);
+
+                        var latlngs = [];
+                        coords.forEach(function(coord) {
+                            var marker = L.marker([coord.lat, coord.lng]).addTo(map);
+                            latlngs.push([coord.lat, coord.lng]);
+                        });
+
+                        var polyline = L.polyline(latlngs, {color: 'blue'}).addTo(map);
+                        map.fitBounds(polyline.getBounds());
+
+                        document.getElementById('map').style.display = 'block';
+                    });
+                });
+            });
+        });
+    </script>
+</body>
+</html>
